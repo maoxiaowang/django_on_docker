@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  db:
+    image: mariadb:10.8.2-rc-focal
+    restart: always
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mariadb/data/
+      - ./conf/my.cnf:/etc/my.cnf
+      - ./init:/docker-entrypoint-initdb.d/
+    env_file:
+      - .env.prod.db
+
+volumes:
+  mariadb_data:

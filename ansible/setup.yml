@@ -1,0 +1,23 @@
+---
+- name: Environment Preparing
+  hosts: all
+  vars:
+    hostname: "node-{{ inventory_hostname | regex_replace('^\\d+\\.\\d+\\.(\\d+)\\.(\\d+)$', '\\1-\\2') }}"
+    os_name: "{{ ansible_distribution.split()[0].lower() }}"
+    os_version: "{{ ansible_distribution_major_version.lower() }}"
+  tasks:
+    # 更改主机名
+    - name: "Settings hostname permanently"
+      shell: "hostnamectl set-hostname {{ hostname }}"
+
+    # 设置域名解析
+    - name: "Setting hostname resolving"
+      lineinfile:
+        dest: /etc/hosts
+        regexp: "^{{ ansible_default_ipv4.address }}\\s+.*$"
+        line: "{{ ansible_default_ipv4.address }}   {{ hostname }}"
+        state: present
+      with_items: "{{ play_hosts }}"
+
+- import_playbook: roles/dbservers/setup.yml
+- import_playbook: roles/webservers/setup.yml

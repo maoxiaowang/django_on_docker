@@ -1,0 +1,84 @@
+###########
+# BUILDER #
+###########
+
+# pull official base image
+FROM python:3.9.6-alpine as builder
+
+# set work directory
+WORKDIR /usr/src/app
+
+# set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# set dns server
+RUN echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+
+# modify repositories
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories
+
+# install psycopg2 packages
+RUN apk update && apk add build-base python3-dev mariadb-dev libffi-dev gcc
+
+# lint
+RUN pip install --upgrade pip -i https://pypi.douban.com/simple
+#RUN pip install flake8==3.9.2 -i https://pypi.douban.com/simple
+#COPY . .
+#RUN flake8 --ignore=E501,F401 .
+
+# install packages
+COPY requirements.txt .
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /usr/src/app/wheels \
+    -r requirements.txt -i https://pypi.douban.com/simple
+
+
+#########
+# FINAL #
+#########
+
+# pull official base image
+FROM python:3.9.6-alpine
+
+# create directory for the app user
+RUN mkdir -p /home/app
+
+# create the app user
+RUN addgroup -S app && adduser -S app -G app
+
+# create the appropriate directories
+ENV HOME=/home/app
+ENV APP_HOME=/home/app/web
+RUN mkdir $APP_HOME
+RUN mkdir $APP_HOME/static
+RUN mkdir $APP_HOME/media
+WORKDIR $APP_HOME
+
+# set dns server
+RUN echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+
+# modify repositories
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories
+
+# install packages
+RUN apk update && apk add gcc musl-dev libffi-dev openssl-dev mariadb-connector-c-dev
+COPY --from=builder /usr/src/app/wheels /wheels
+COPY --from=builder /usr/src/app/requirements.txt .
+RUN pip install --no-cache /wheels/* -i https://pypi.douban.com/simple
+
+# copy entrypoint.prod.sh
+COPY entrypoint.prod.sh .
+RUN sed -i 's/\r$//g'  $APP_HOME/entrypoint.prod.sh
+RUN chmod +x  $APP_HOME/entrypoint.prod.sh
+
+# copy project
+COPY . $APP_HOME
+
+# chown all the files to the app user
+RUN chown -R app:app $APP_HOME
+
+# change to the app user
+USER app
+
+# run entrypoint.prod.sh
+ENTRYPOINT ["/home/app/web/entrypoint.prod.sh"]

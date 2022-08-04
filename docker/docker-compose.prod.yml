@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: app
+      dockerfile: app/Dockerfile.prod
+    restart: always
+    command: daphne -b 0.0.0.0 -p 8000 hello_django.asgi:application
+    volumes:
+      - ./app/:/usr/src/app/
+      - static_volume:/home/app/web/static
+      - media_volume:/home/app/web/media
+    # The port 8000 is only exposed internally, to other Docker services.
+    expose:
+        - 8000
+    env_file:
+      - .env.prod
+    depends_on:
+      - db
+
+  db:
+    image: mariadb:10.8.2-rc-focal
+    restart: always
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mariadb/data/
+      - ./conf/my.cnf:/etc/my.cnf
+      - ./init:/docker-entrypoint-initdb.d/
+    env_file:
+      - .env.prod.db
+
+  nginx:
+    build: nginx
+    volumes:
+      - static_volume:/home/app/web/static
+      - media_volume:/home/app/web/media
+    ports:
+      - "8000:80"
+    depends_on:
+      - web
+volumes:
+  mariadb_data:
+  static_volume:
+  media_volume:
